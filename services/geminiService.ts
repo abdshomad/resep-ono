@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import type { DailyMeal, DietaryPreferences, Ingredient } from '../types';
 
 if (!process.env.API_KEY) {
@@ -6,31 +6,6 @@ if (!process.env.API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const fileToGenerativePart = async (file: File) => {
-  const base64EncodedData = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-        if (typeof reader.result === 'string') {
-            const parts = reader.result.split(',');
-            if (parts.length === 2 && parts[1]) {
-                resolve(parts[1]);
-            } else {
-                reject(new Error(`Gagal memproses file: ${file.name}. Format tidak valid.`));
-            }
-        } else {
-             reject(new Error(`Hasil pembacaan file bukan string untuk: ${file.name}.`));
-        }
-    };
-    reader.onerror = () => {
-      reject(reader.error || new Error(`Gagal membaca file: ${file.name}`));
-    };
-    reader.readAsDataURL(file);
-  });
-  return {
-    inlineData: { data: base64EncodedData, mimeType: file.type },
-  };
-};
 
 const ingredientSchema = {
     type: Type.ARRAY,
@@ -44,11 +19,9 @@ const ingredientSchema = {
     }
 };
 
-export const extractIngredientsFromImage = async (imageFiles: File[]): Promise<Ingredient[]> => {
-    const imageParts = await Promise.all(
-        imageFiles.map(file => fileToGenerativePart(file))
-    );
+type ImagePart = { inlineData: { data: string; mimeType: string; } };
 
+export const extractIngredientsFromImage = async (imageParts: ImagePart[]): Promise<Ingredient[]> => {
     const prompt = `Anda adalah ahli pengenalan gambar makanan dan ahli gizi. Analisis semua gambar ini yang berisi bahan-bahan makanan di kulkas, dapur, atau meja. 
 1.  Identifikasi setiap item makanan yang terlihat di SEMUA gambar.
 2.  Perkirakan jumlah atau berat untuk setiap item (misalnya, "2 buah", "sekitar 250g", "1 ikat", "6 butir").
@@ -173,23 +146,21 @@ export const generateRecipeImage = async (recipeName: string): Promise<string> =
     try {
         const prompt = `Foto close-up yang fotorealistik dan sangat menggugah selera dari masakan Indonesia: ${recipeName}. Tampilkan di atas piring keramik yang bagus, dengan hiasan segar, pencahayaan studio yang lembut.`;
         
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: {
-                parts: [{ text: prompt }],
-            },
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: prompt,
             config: {
-                responseModalities: [Modality.IMAGE, Modality.TEXT],
+              numberOfImages: 1,
+              outputMimeType: 'image/jpeg',
+              aspectRatio: '4:3',
             },
         });
 
-        for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData) {
-                const base64ImageBytes: string = part.inlineData.data;
-                const mimeType = part.inlineData.mimeType;
-                return `data:${mimeType};base64,${base64ImageBytes}`;
-            }
+        if (response.generatedImages && response.generatedImages.length > 0) {
+            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+            return `data:image/jpeg;base64,${base64ImageBytes}`;
         }
+        
         throw new Error("No image data found in response");
     } catch (error) {
         console.error("Error generating recipe image:", error);

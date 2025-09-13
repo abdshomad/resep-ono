@@ -39,10 +39,39 @@ const App: React.FC = () => {
   };
   
   const handleImagesUpload = useCallback(async (files: File[]) => {
-    setAppState('processing_receipt');
     setError(null);
+
+    const fileToGenerativePart = (file: File): Promise<{ inlineData: { data: string; mimeType: string } }> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (typeof reader.result === 'string') {
+                    const parts = reader.result.split(',');
+                    if (parts.length === 2 && parts[1]) {
+                        resolve({ inlineData: { data: parts[1], mimeType: file.type } });
+                    } else {
+                        reject(new Error(`Gagal memproses file: ${file.name}. Format tidak valid.`));
+                    }
+                } else {
+                    reject(new Error(`Hasil pembacaan file bukan string untuk: ${file.name}.`));
+                }
+            };
+            reader.onerror = () => {
+                reject(reader.error || new Error(`Gagal membaca file: ${file.name}`));
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    // Immediately start reading files to avoid permission issues.
+    const imagePartsPromises = files.map(fileToGenerativePart);
+    
+    setAppState('processing_receipt');
+
     try {
-      const extracted = await extractIngredientsFromImage(files);
+      const imageParts = await Promise.all(imagePartsPromises);
+      const extracted = await extractIngredientsFromImage(imageParts);
+      
       if (extracted.length === 0) {
         throw new Error("Tidak ada bahan makanan yang dapat ditemukan. Coba lagi dengan gambar yang lebih jelas.");
       }
