@@ -1,0 +1,7 @@
+{
+  "name": "Resep Ono",
+  "description": "An AI-powered app that transforms your photos into a weekly meal plan, helping you reduce food waste and save money. The user interface is in Bahasa Indonesia.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
