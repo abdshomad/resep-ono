@@ -86,24 +86,24 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
                 <div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Estimasi Informasi Gizi</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                    <div className="bg-sky-100 p-3 rounded-lg shadow-sm">
-                        <p className="text-sm text-sky-700 font-medium">Kalori</p>
-                        <p className="text-lg font-bold text-sky-900">{nutrisi.kalori}</p>
+                    <div className="bg-sky-200/60 p-4 rounded-lg shadow-sm">
+                        <p className="text-sm text-sky-800 font-semibold">Kalori</p>
+                        <p className="text-xl font-bold text-sky-900 mt-1">{nutrisi.kalori}</p>
                     </div>
-                    <div className="bg-rose-100 p-3 rounded-lg shadow-sm">
-                        <p className="text-sm text-rose-700 font-medium">Protein</p>
-                        <p className="text-lg font-bold text-rose-900">{nutrisi.protein}</p>
+                    <div className="bg-rose-200/60 p-4 rounded-lg shadow-sm">
+                        <p className="text-sm text-rose-800 font-semibold">Protein</p>
+                        <p className="text-xl font-bold text-rose-900 mt-1">{nutrisi.protein}</p>
                     </div>
-                    <div className="bg-amber-100 p-3 rounded-lg shadow-sm">
-                        <p className="text-sm text-amber-700 font-medium">Karbohidrat</p>
-                        <p className="text-lg font-bold text-amber-900">{nutrisi.karbohidrat}</p>
+                    <div className="bg-amber-200/60 p-4 rounded-lg shadow-sm">
+                        <p className="text-sm text-amber-800 font-semibold">Karbohidrat</p>
+                        <p className="text-xl font-bold text-amber-900 mt-1">{nutrisi.karbohidrat}</p>
                     </div>
-                    <div className="bg-lime-100 p-3 rounded-lg shadow-sm">
-                        <p className="text-sm text-lime-700 font-medium">Lemak</p>
-                        <p className="text-lg font-bold text-lime-900">{nutrisi.lemak}</p>
+                    <div className="bg-lime-200/60 p-4 rounded-lg shadow-sm">
+                        <p className="text-sm text-lime-800 font-semibold">Lemak</p>
+                        <p className="text-xl font-bold text-lime-900 mt-1">{nutrisi.lemak}</p>
                     </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 text-center">Estimasi per porsi.</p>
+                    <p className="text-xs text-gray-500 mt-3 text-center">Estimasi per porsi.</p>
                 </div>
                 )}
 
