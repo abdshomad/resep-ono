@@ -48,7 +48,7 @@ const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onImagesUpload, isProcess
     <div className="text-center p-6 bg-white rounded-lg shadow-md border border-gray-200">
       <div className="max-w-md mx-auto">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Ubah Isi Kulkas Jadi Rencana Masak</h2>
-        <p className="text-gray-600 mb-6">Fotokan bahan makanan di kulkas atau dapur Anda. Anda bisa menambahkan beberapa foto untuk hasil yang lebih akurat.</p>
+        <p className="text-gray-600 mb-6">Fotokan atau unggah gambar bahan makanan di kulkas atau dapur Anda. Anda bisa menambahkan beberapa foto untuk hasil yang lebih akurat.</p>
         
         <input
           type="file"
@@ -57,7 +57,6 @@ const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onImagesUpload, isProcess
           className="hidden"
           accept="image/*"
           multiple
-          capture="environment"
         />
         
         {selectedFiles.length > 0 && (

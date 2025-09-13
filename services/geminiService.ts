@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import type { DailyMeal, DietaryPreferences, Ingredient } from './types';
+import type { DailyMeal, DietaryPreferences, Ingredient } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
@@ -8,13 +8,27 @@ if (!process.env.API_KEY) {
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const fileToGenerativePart = async (file: File) => {
-  const base64EncodedDataPromise = new Promise<string>((resolve) => {
+  const base64EncodedData = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.onload = () => {
+        if (typeof reader.result === 'string') {
+            const parts = reader.result.split(',');
+            if (parts.length === 2 && parts[1]) {
+                resolve(parts[1]);
+            } else {
+                reject(new Error(`Gagal memproses file: ${file.name}. Format tidak valid.`));
+            }
+        } else {
+             reject(new Error(`Hasil pembacaan file bukan string untuk: ${file.name}.`));
+        }
+    };
+    reader.onerror = () => {
+      reject(reader.error || new Error(`Gagal membaca file: ${file.name}`));
+    };
     reader.readAsDataURL(file);
   });
   return {
-    inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
+    inlineData: { data: base64EncodedData, mimeType: file.type },
   };
 };
 
@@ -80,9 +94,25 @@ const mealPlanSchema = {
             deskripsi: { type: Type.STRING, description: "Deskripsi singkat dan menarik tentang resep" },
             bahan: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Daftar bahan yang dibutuhkan" },
             instruksi: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Langkah-langkah memasak" },
-            waktuMasak: { type: Type.STRING, description: "Estimasi waktu memasak (misal: '30 menit')" }
+            waktuMasak: { type: Type.STRING, description: "Estimasi waktu memasak (misal: '30 menit')" },
+            nutrisi: {
+              type: Type.OBJECT,
+              description: "Estimasi informasi gizi per porsi",
+              properties: {
+                kalori: { type: Type.STRING, description: "Jumlah kalori, contoh: '450 kcal'" },
+                protein: { type: Type.STRING, description: "Jumlah protein, contoh: '30g'" },
+                karbohidrat: { type: Type.STRING, description: "Jumlah karbohidrat, contoh: '40g'" },
+                lemak: { type: Type.STRING, description: "Jumlah lemak, contoh: '15g'" }
+              },
+              required: ["kalori", "protein", "karbohidrat", "lemak"]
+            },
+            tips: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "Satu atau dua tips memasak atau penyajian yang relevan dengan resep"
+            }
           },
-          required: ["namaResep", "deskripsi", "bahan", "instruksi", "waktuMasak"],
+          required: ["namaResep", "deskripsi", "bahan", "instruksi", "waktuMasak", "nutrisi", "tips"],
         }
       },
       required: ["hari", "resep"],
@@ -109,6 +139,11 @@ export const generateMealPlan = async (ingredients: Ingredient[], preferences: D
         ${preferenceText}
         Buatkan rencana makan malam untuk 7 hari (Senin sampai Minggu). Untuk setiap hari, berikan satu resep yang sederhana, lezat, dan cocok untuk keluarga. 
         Pastikan resep memaksimalkan penggunaan bahan yang tersedia dan mempertimbangkan jumlahnya agar realistis.
+
+        Untuk SETIAP resep, sertakan juga:
+        1.  Estimasi informasi gizi per porsi (kalori, protein, karbohidrat, lemak).
+        2.  Satu atau dua tips memasak atau penyajian yang relevan dan bermanfaat.
+        
         Jawab HANYA dalam format JSON sesuai skema yang diberikan.
     `;
 

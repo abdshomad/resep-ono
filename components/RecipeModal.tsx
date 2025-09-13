@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { DailyMeal, Ingredient } from '../types';
 import { CloseIcon } from './icons';
@@ -21,6 +20,9 @@ const ImagePlaceholder = () => (
 
 const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredients, isGeneratingImage }) => {
   if (!meal) return null;
+
+  const { resep } = meal;
+  const { nutrisi, tips } = resep;
   
   const ownedIngredientsLower = ownedIngredients.map(i => i.name.toLowerCase());
 
@@ -35,8 +37,8 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
         
         {isGeneratingImage && <ImagePlaceholder />}
-        {!isGeneratingImage && meal.resep.imageUrl && (
-            <img src={meal.resep.imageUrl} alt={meal.resep.namaResep} className="w-full h-64 object-cover rounded-t-xl" />
+        {!isGeneratingImage && resep.imageUrl && (
+            <img src={resep.imageUrl} alt={resep.namaResep} className="w-full h-64 object-cover rounded-t-xl" />
         )}
 
         <div className="p-6 relative">
@@ -44,18 +46,18 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
             <CloseIcon className="h-6 w-6" />
           </button>
           
-          <h2 className="text-3xl font-bold text-emerald-700 mb-2">{meal.resep.namaResep}</h2>
+          <h2 className="text-3xl font-bold text-emerald-700 mb-2">{resep.namaResep}</h2>
           <p className="text-gray-500 mb-1">Resep untuk: <span className="font-semibold text-gray-700">{meal.hari}</span></p>
           <p className="text-sm text-gray-500 bg-emerald-50 inline-block px-2 py-1 rounded-full mb-4">
-            <span className="font-semibold">Waktu Memasak:</span> {meal.resep.waktuMasak}
+            <span className="font-semibold">Waktu Memasak:</span> {resep.waktuMasak}
           </p>
-          <p className="text-gray-600 mb-6">{meal.resep.deskripsi}</p>
+          <p className="text-gray-600 mb-6">{resep.deskripsi}</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Bahan-bahan</h3>
               <ul className="space-y-2">
-                {meal.resep.bahan.map((item, index) => (
+                {resep.bahan.map((item, index) => (
                   <li key={index} className={`flex items-start ${isIngredientOwned(item) ? 'text-gray-800' : 'text-red-600'}`}>
                     {isIngredientOwned(item) ? 
                       <span className="text-emerald-500 mr-2 mt-1">✓</span> :
@@ -70,12 +72,58 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
             <div>
               <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Instruksi</h3>
               <ol className="list-decimal list-inside space-y-3 text-gray-700">
-                {meal.resep.instruksi.map((step, index) => (
+                {resep.instruksi.map((step, index) => (
                   <li key={index} className="pl-2">{step}</li>
                 ))}
               </ol>
             </div>
           </div>
+
+          {(nutrisi || (tips && tips.length > 0)) && (
+            <div className="mt-8 bg-emerald-50/60 p-4 rounded-lg">
+                <div className="space-y-6">
+                {nutrisi && (
+                <div>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Estimasi Informasi Gizi</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div className="bg-sky-100 p-3 rounded-lg shadow-sm">
+                        <p className="text-sm text-sky-700 font-medium">Kalori</p>
+                        <p className="text-lg font-bold text-sky-900">{nutrisi.kalori}</p>
+                    </div>
+                    <div className="bg-rose-100 p-3 rounded-lg shadow-sm">
+                        <p className="text-sm text-rose-700 font-medium">Protein</p>
+                        <p className="text-lg font-bold text-rose-900">{nutrisi.protein}</p>
+                    </div>
+                    <div className="bg-amber-100 p-3 rounded-lg shadow-sm">
+                        <p className="text-sm text-amber-700 font-medium">Karbohidrat</p>
+                        <p className="text-lg font-bold text-amber-900">{nutrisi.karbohidrat}</p>
+                    </div>
+                    <div className="bg-lime-100 p-3 rounded-lg shadow-sm">
+                        <p className="text-sm text-lime-700 font-medium">Lemak</p>
+                        <p className="text-lg font-bold text-lime-900">{nutrisi.lemak}</p>
+                    </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 text-center">Estimasi per porsi.</p>
+                </div>
+                )}
+
+                {tips && tips.length > 0 && (
+                <div>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Tips Memasak</h3>
+                    <ul className="space-y-3">
+                    {tips.map((tip, index) => (
+                        <li key={index} className="flex items-start bg-white/50 p-3 rounded-md">
+                        <span className="text-emerald-500 mr-3 mt-1 text-lg">💡</span>
+                        <span className="text-gray-700">{tip}</span>
+                        </li>
+                    ))}
+                    </ul>
+                </div>
+                )}
+                </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

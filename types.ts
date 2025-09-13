@@ -11,6 +11,13 @@ export interface Ingredient {
   quantity: string;
 }
 
+export interface NutritionInfo {
+  kalori: string;
+  protein: string;
+  karbohidrat: string;
+  lemak: string;
+}
+
 export interface Recipe {
   namaResep: string;
   deskripsi: string;
@@ -18,6 +25,8 @@ export interface Recipe {
   instruksi: string[];
   waktuMasak: string;
   imageUrl?: string;
+  nutrisi?: NutritionInfo;
+  tips?: string[];
 }
 
 export interface DailyMeal {
