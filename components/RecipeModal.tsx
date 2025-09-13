@@ -54,7 +54,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
           <p className="text-gray-600 mb-6">{resep.deskripsi}</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
+            <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Bahan-bahan</h3>
               <ul className="space-y-2">
                 {resep.bahan.map((item, index) => (
@@ -69,7 +69,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
               </ul>
               <p className="text-xs text-gray-400 mt-2"><span className="text-emerald-500">✓</span> = Anda punya. <span className="text-red-500">!</span> = Mungkin perlu dibeli.</p>
             </div>
-            <div>
+            <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Instruksi</h3>
               <ol className="list-decimal list-inside space-y-3 text-gray-700">
                 {resep.instruksi.map((step, index) => (
