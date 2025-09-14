@@ -92,7 +92,7 @@ const mealPlanSchema = {
     }
 };
 
-export const generateMealPlan = async (ingredients: Ingredient[], preferences: DietaryPreferences): Promise<DailyMeal[]> => {
+export const generateMealPlan = async (ingredients: Ingredient[], preferences: DietaryPreferences, useOnlyProvidedIngredients: boolean): Promise<DailyMeal[]> => {
     let preferenceText = "Tidak ada preferensi khusus.";
     const activePreferences = [];
     if (preferences.vegetarian) activePreferences.push("vegetarian");
@@ -106,12 +106,16 @@ export const generateMealPlan = async (ingredients: Ingredient[], preferences: D
 
     const ingredientListText = ingredients.map(i => `${i.name} (${i.quantity})`).join(", ");
 
+    const strictInstruction = useOnlyProvidedIngredients
+        ? "PENTING: Buat resep HANYA menggunakan bahan-bahan dari daftar yang diberikan. Jangan menyarankan bahan apa pun yang tidak ada dalam daftar."
+        : "Pastikan resep memaksimalkan penggunaan bahan yang tersedia dan mempertimbangkan jumlahnya agar realistis. Anda boleh menyarankan beberapa bahan tambahan umum jika diperlukan untuk melengkapi resep.";
+
     const prompt = `
         Anda adalah seorang ahli gizi dan koki yang handal dari Indonesia. 
         Berdasarkan daftar bahan makanan dan jumlahnya berikut: ${ingredientListText}.
         ${preferenceText}
         Buatkan rencana makan malam untuk 7 hari (Senin sampai Minggu). Untuk setiap hari, berikan satu resep yang sederhana, lezat, dan cocok untuk keluarga. 
-        Pastikan resep memaksimalkan penggunaan bahan yang tersedia dan mempertimbangkan jumlahnya agar realistis.
+        ${strictInstruction}
 
         Untuk SETIAP resep, sertakan juga:
         1.  Estimasi informasi gizi per porsi (kalori, protein, karbohidrat, lemak).

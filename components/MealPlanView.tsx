@@ -20,16 +20,23 @@ const MealPlanView: React.FC<MealPlanViewProps> = ({ mealPlan, onSelectRecipe, o
           <div
             key={meal.hari}
             onClick={() => onSelectRecipe(meal)}
-            className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transform hover:-translate-y-1 transition-all duration-300"
+            className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transform hover:-translate-y-1 transition-all duration-300 flex flex-col"
           >
             <div className="bg-emerald-600 text-white text-center py-2 font-bold">
               {meal.hari}
             </div>
-            <div className="p-4">
-              <h3 className="text-lg font-semibold text-gray-800 h-14">{meal.resep.namaResep}</h3>
-              <p className="text-sm text-gray-500 mt-2 h-16 overflow-hidden">{meal.resep.deskripsi}</p>
-              <div className="text-xs text-gray-500 mt-3 border-t pt-2">
-                <span className="font-semibold">Waktu:</span> {meal.resep.waktuMasak}
+            <div className="p-4 flex flex-col flex-grow">
+              <div className="flex-grow">
+                <h3 className="text-lg font-semibold text-gray-800 h-14">{meal.resep.namaResep}</h3>
+                <p className="text-sm text-gray-500 mt-2 h-16 overflow-hidden">{meal.resep.deskripsi}</p>
+                <div className="text-xs text-gray-500 mt-3 border-t pt-2">
+                  <span className="font-semibold">Waktu:</span> {meal.resep.waktuMasak}
+                </div>
+              </div>
+              <div className="mt-4">
+                  <button className="w-full text-center py-2 px-4 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200">
+                    Lihat Resep
+                  </button>
               </div>
             </div>
           </div>

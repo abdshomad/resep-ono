@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { DailyMeal, DietaryPreferences, Ingredient } from './types';
 import { extractIngredientsFromImage, generateMealPlan, generateRecipeImage } from './services/geminiService';
 import Header from './components/Header';
@@ -9,12 +9,14 @@ import LoadingIndicator from './components/LoadingIndicator';
 import MealPlanView from './components/MealPlanView';
 import RecipeModal from './components/RecipeModal';
 
-type AppState = 'initial' | 'processing_receipt' | 'editing_ingredients' | 'generating_plan' | 'showing_plan';
+type AppState = 'initial' | 'processing_receipt' | 'editing_ingredients' | 'confirm_add_ingredients' | 'generating_plan' | 'showing_plan';
 
 const loadingMessages = {
   processing_receipt: 'Menganalisis foto bahan makanan...',
   generating_plan: 'Menyusun rencana makan...',
 };
+
+const PREFERENCES_STORAGE_KEY = 'resep-ono-preferences';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('initial');
@@ -23,12 +25,37 @@ const App: React.FC = () => {
   const [selectedRecipe, setSelectedRecipe] = useState<DailyMeal | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preferences, setPreferences] = useState<DietaryPreferences>({
-    vegetarian: false,
-    glutenFree: false,
-    dairyFree: false,
-    lainnya: '',
+  
+  const [preferences, setPreferences] = useState<DietaryPreferences>(() => {
+    try {
+        const storedPreferences = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+        if (storedPreferences) {
+            const parsed = JSON.parse(storedPreferences);
+            // Validasi dasar untuk memastikan ini bukan string acak yang tersimpan
+            if (typeof parsed === 'object' && parsed !== null && 'vegetarian' in parsed) {
+               return parsed;
+            }
+        }
+    } catch (e) {
+        console.error("Gagal mem-parsing preferensi dari localStorage", e);
+    }
+    // Kembalikan default jika tidak ada di penyimpanan atau parsing gagal
+    return {
+        vegetarian: false,
+        glutenFree: false,
+        dairyFree: false,
+        lainnya: '',
+    };
   });
+
+  useEffect(() => {
+    try {
+        localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
+    } catch (e) {
+        console.error("Gagal menyimpan preferensi ke localStorage", e);
+    }
+  }, [preferences]);
+
 
   const handleReset = () => {
     setAppState('initial');
@@ -63,7 +90,7 @@ const App: React.FC = () => {
         });
     };
 
-    // Immediately start reading files to avoid permission issues.
+    // Segera mulai membaca file untuk menghindari masalah izin.
     const imagePartsPromises = files.map(fileToGenerativePart);
     
     setAppState('processing_receipt');
@@ -83,13 +110,31 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleGeneratePlan = useCallback(async () => {
+  const handleInitialPlanGeneration = useCallback(async () => {
     setAppState('generating_plan');
     setError(null);
     try {
-      const plan = await generateMealPlan(ingredients, preferences);
-       if (plan.length === 0) {
-        throw new Error("Tidak dapat membuat rencana makan dari bahan yang diberikan. Coba tambahkan lebih banyak bahan.");
+      const plan = await generateMealPlan(ingredients, preferences, true); // Strict dulu
+      if (plan.length === 0) {
+        setAppState('confirm_add_ingredients');
+      } else {
+        setMealPlan(plan);
+        setAppState('showing_plan');
+      }
+    } catch (e: any) {
+      console.error("Pembuatan rencana ketat gagal, menawarkan opsi fleksibel:", e);
+      // Kembali ke meminta pengguna jika pembuatan ketat gagal karena alasan apa pun
+      setAppState('confirm_add_ingredients');
+    }
+  }, [ingredients, preferences]);
+
+  const handleFlexiblePlanGeneration = useCallback(async () => {
+    setAppState('generating_plan');
+    setError(null);
+    try {
+      const plan = await generateMealPlan(ingredients, preferences, false); // Tidak strict
+      if (plan.length === 0) {
+        throw new Error("Tidak dapat membuat rencana makan bahkan dengan bahan tambahan. Coba lagi dengan daftar bahan yang berbeda.");
       }
       setMealPlan(plan);
       setAppState('showing_plan');
@@ -99,28 +144,29 @@ const App: React.FC = () => {
     }
   }, [ingredients, preferences]);
 
+
   const handleSelectRecipe = useCallback(async (meal: DailyMeal) => {
     setSelectedRecipe(meal);
     if (meal.resep.imageUrl) {
-      return; // Image already exists
+      return; // Gambar sudah ada
     }
     
     setIsGeneratingImage(true);
     try {
       const imageUrl = await generateRecipeImage(meal.resep.namaResep);
-      // Update the image URL in the main mealPlan state for caching
+      // Perbarui URL gambar di state mealPlan utama untuk caching
       setMealPlan(currentPlan =>
         currentPlan.map(m =>
           m.hari === meal.hari ? { ...m, resep: { ...m.resep, imageUrl } } : m
         )
       );
-      // Update the selected recipe to trigger re-render in the modal
+      // Perbarui resep yang dipilih untuk memicu render ulang di modal
       setSelectedRecipe(currentRecipe =>
         currentRecipe ? { ...currentRecipe, resep: { ...currentRecipe.resep, imageUrl } } : null
       );
     } catch (e: any) {
-      console.error("Image generation failed:", e.message);
-      // You could set an error state for the image here if desired
+      console.error("Pembuatan gambar gagal:", e.message);
+      // Anda bisa mengatur state error untuk gambar di sini jika diinginkan
     } finally {
       setIsGeneratingImage(false);
     }
@@ -149,11 +195,35 @@ const App: React.FC = () => {
               <IngredientEditor
                 ingredients={ingredients}
                 onIngredientsChange={setIngredients}
-                onConfirm={handleGeneratePlan}
+                onConfirm={handleInitialPlanGeneration}
                 onBack={handleReset}
               />
             </div>
           </div>
+        );
+      case 'confirm_add_ingredients':
+        return (
+            <div className="bg-white p-8 rounded-lg shadow-xl max-w-md mx-auto text-center border border-gray-200">
+                <div className="text-4xl mb-4">🤔</div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-3">Bahan Kurang Mencukupi?</h2>
+                <p className="text-gray-600 mb-8">
+                    Kami kesulitan membuat rencana makan hanya dari bahan yang Anda berikan. Izinkan kami untuk mencoba membuat resep yang lebih fleksibel dengan menyarankan beberapa bahan tambahan?
+                </p>
+                <div className="flex flex-col sm:flex-row justify-center gap-4">
+                    <button
+                        onClick={() => setAppState('editing_ingredients')}
+                        className="w-full px-6 py-3 font-semibold text-gray-800 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+                    >
+                        Tidak, Ubah Bahan
+                    </button>
+                    <button
+                        onClick={handleFlexiblePlanGeneration}
+                        className="w-full px-6 py-3 font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                    >
+                        Ya, Buat Resep Fleksibel
+                    </button>
+                </div>
+            </div>
         );
       case 'showing_plan':
         return <MealPlanView mealPlan={mealPlan} onSelectRecipe={handleSelectRecipe} onReset={handleReset} />;
