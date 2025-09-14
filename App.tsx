@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { DailyMeal, DietaryPreferences, Ingredient } from './types';
-import { extractIngredientsFromImage, generateMealPlan, generateRecipeImage } from './services/geminiService';
+import type { DailyMeal, DietaryPreferences, Ingredient, Recipe } from './types';
+import { extractIngredientsFromImage, generateMealPlan, generateRecipeImage, regenerateRecipe } from './services/geminiService';
 import Header from './components/Header';
 import ReceiptUpload from './components/ReceiptUpload';
 import DietaryPreferencesForm from './components/DietaryPreferencesForm';
@@ -25,13 +25,17 @@ const App: React.FC = () => {
   const [selectedRecipe, setSelectedRecipe] = useState<DailyMeal | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPlanFlexible, setIsPlanFlexible] = useState(false);
+  
+  const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
+  const [recipeOptions, setRecipeOptions] = useState<{ [day: string]: Recipe[] }>({});
+  const [activeRecipeIndexes, setActiveRecipeIndexes] = useState<{ [day: string]: number }>({});
   
   const [preferences, setPreferences] = useState<DietaryPreferences>(() => {
     try {
         const storedPreferences = localStorage.getItem(PREFERENCES_STORAGE_KEY);
         if (storedPreferences) {
             const parsed = JSON.parse(storedPreferences);
-            // Validasi dasar untuk memastikan ini bukan string acak yang tersimpan
             if (typeof parsed === 'object' && parsed !== null && 'vegetarian' in parsed) {
                return parsed;
             }
@@ -39,7 +43,6 @@ const App: React.FC = () => {
     } catch (e) {
         console.error("Gagal mem-parsing preferensi dari localStorage", e);
     }
-    // Kembalikan default jika tidak ada di penyimpanan atau parsing gagal
     return {
         vegetarian: false,
         glutenFree: false,
@@ -56,6 +59,7 @@ const App: React.FC = () => {
     }
   }, [preferences]);
 
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const handleReset = () => {
     setAppState('initial');
@@ -63,6 +67,9 @@ const App: React.FC = () => {
     setMealPlan([]);
     setSelectedRecipe(null);
     setError(null);
+    setIsRegenerating(null);
+    setRecipeOptions({});
+    setActiveRecipeIndexes({});
   };
   
   const handleImagesUpload = useCallback(async (files: File[]) => {
@@ -90,13 +97,13 @@ const App: React.FC = () => {
         });
     };
 
-    // Segera mulai membaca file untuk menghindari masalah izin.
     const imagePartsPromises = files.map(fileToGenerativePart);
     
     setAppState('processing_receipt');
 
     try {
       const imageParts = await Promise.all(imagePartsPromises);
+      await sleep(2000 + Math.random() * 1000);
       const extracted = await extractIngredientsFromImage(imageParts);
       
       if (extracted.length === 0) {
@@ -113,17 +120,26 @@ const App: React.FC = () => {
   const handleInitialPlanGeneration = useCallback(async () => {
     setAppState('generating_plan');
     setError(null);
+    setIsPlanFlexible(false);
     try {
-      const plan = await generateMealPlan(ingredients, preferences, true); // Strict dulu
+      await sleep(2000 + Math.random() * 1000);
+      const plan: DailyMeal[] = await generateMealPlan(ingredients, preferences, true); // Strict dulu
       if (plan.length === 0) {
         setAppState('confirm_add_ingredients');
       } else {
         setMealPlan(plan);
+        const options: { [day: string]: Recipe[] } = {};
+        const indexes: { [day: string]: number } = {};
+        plan.forEach(meal => {
+            options[meal.hari] = [meal.resep];
+            indexes[meal.hari] = 0;
+        });
+        setRecipeOptions(options);
+        setActiveRecipeIndexes(indexes);
         setAppState('showing_plan');
       }
     } catch (e: any) {
       console.error("Pembuatan rencana ketat gagal, menawarkan opsi fleksibel:", e);
-      // Kembali ke meminta pengguna jika pembuatan ketat gagal karena alasan apa pun
       setAppState('confirm_add_ingredients');
     }
   }, [ingredients, preferences]);
@@ -131,12 +147,22 @@ const App: React.FC = () => {
   const handleFlexiblePlanGeneration = useCallback(async () => {
     setAppState('generating_plan');
     setError(null);
+    setIsPlanFlexible(true);
     try {
-      const plan = await generateMealPlan(ingredients, preferences, false); // Tidak strict
+      await sleep(2000 + Math.random() * 1000);
+      const plan: DailyMeal[] = await generateMealPlan(ingredients, preferences, false); // Tidak strict
       if (plan.length === 0) {
         throw new Error("Tidak dapat membuat rencana makan bahkan dengan bahan tambahan. Coba lagi dengan daftar bahan yang berbeda.");
       }
       setMealPlan(plan);
+      const options: { [day: string]: Recipe[] } = {};
+      const indexes: { [day: string]: number } = {};
+      plan.forEach(meal => {
+          options[meal.hari] = [meal.resep];
+          indexes[meal.hari] = 0;
+      });
+      setRecipeOptions(options);
+      setActiveRecipeIndexes(indexes);
       setAppState('showing_plan');
     } catch (e: any) {
       setError(e.message || 'Terjadi kesalahan');
@@ -148,29 +174,77 @@ const App: React.FC = () => {
   const handleSelectRecipe = useCallback(async (meal: DailyMeal) => {
     setSelectedRecipe(meal);
     if (meal.resep.imageUrl) {
-      return; // Gambar sudah ada
+      return;
     }
     
     setIsGeneratingImage(true);
     try {
+      await sleep(2000 + Math.random() * 1000);
       const imageUrl = await generateRecipeImage(meal.resep.namaResep);
-      // Perbarui URL gambar di state mealPlan utama untuk caching
       setMealPlan(currentPlan =>
         currentPlan.map(m =>
           m.hari === meal.hari ? { ...m, resep: { ...m.resep, imageUrl } } : m
         )
       );
-      // Perbarui resep yang dipilih untuk memicu render ulang di modal
+      setRecipeOptions(prevOptions => {
+        const dayOptions = prevOptions[meal.hari].map(opt => 
+          opt.namaResep === meal.resep.namaResep ? { ...opt, imageUrl } : opt
+        );
+        return { ...prevOptions, [meal.hari]: dayOptions };
+      });
       setSelectedRecipe(currentRecipe =>
         currentRecipe ? { ...currentRecipe, resep: { ...currentRecipe.resep, imageUrl } } : null
       );
     } catch (e: any) {
       console.error("Pembuatan gambar gagal:", e.message);
-      // Anda bisa mengatur state error untuk gambar di sini jika diinginkan
     } finally {
       setIsGeneratingImage(false);
     }
   }, []);
+  
+  const handleRegenerateRecipe = useCallback(async (day: string) => {
+    setError(null);
+    setIsRegenerating(day);
+    
+    try {
+        await sleep(2000 + Math.random() * 1000);
+        const currentRecipes = recipeOptions[day] || [];
+        const currentRecipeNames = currentRecipes.map(r => r.namaResep);
+
+        const newRecipe = await regenerateRecipe(
+            ingredients, 
+            preferences, 
+            !isPlanFlexible,
+            mealPlan, // Pass the current meal plan to avoid duplicates
+            day
+        );
+        
+        const newOptions = [...currentRecipes, newRecipe];
+        const newIndex = newOptions.length - 1;
+
+        setRecipeOptions(prev => ({ ...prev, [day]: newOptions }));
+        setActiveRecipeIndexes(prev => ({ ...prev, [day]: newIndex }));
+        setMealPlan(currentPlan => 
+            currentPlan.map(m => (m.hari === day ? { ...m, resep: newRecipe } : m))
+        );
+
+    } catch(e: any) {
+        setError(e.message || 'Gagal membuat resep baru.');
+    } finally {
+        setIsRegenerating(null);
+    }
+  }, [ingredients, preferences, isPlanFlexible, mealPlan, recipeOptions]);
+  
+  const handleRecipeSwipe = useCallback((day: string, newIndex: number) => {
+    const options = recipeOptions[day];
+    if (options && newIndex >= 0 && newIndex < options.length) {
+      const newActiveRecipe = options[newIndex];
+      setActiveRecipeIndexes(prev => ({...prev, [day]: newIndex}));
+      setMealPlan(currentPlan => 
+        currentPlan.map(m => m.hari === day ? { ...m, resep: newActiveRecipe } : m)
+      );
+    }
+  }, [recipeOptions]);
 
   const renderContent = () => {
     const isProcessing = appState === 'processing_receipt' || appState === 'generating_plan';
@@ -226,7 +300,16 @@ const App: React.FC = () => {
             </div>
         );
       case 'showing_plan':
-        return <MealPlanView mealPlan={mealPlan} onSelectRecipe={handleSelectRecipe} onReset={handleReset} />;
+        return <MealPlanView 
+                  mealPlan={mealPlan} 
+                  onSelectRecipe={handleSelectRecipe} 
+                  onReset={handleReset}
+                  onRegenerate={handleRegenerateRecipe}
+                  isRegenerating={isRegenerating}
+                  recipeOptions={recipeOptions}
+                  activeRecipeIndexes={activeRecipeIndexes}
+                  onRecipeSwipe={handleRecipeSwipe}
+                />;
       default:
         return null;
     }

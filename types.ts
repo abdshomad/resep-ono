@@ -27,6 +27,7 @@ export interface Recipe {
   imageUrl?: string;
   nutrisi?: NutritionInfo;
   tips?: string[];
+  saranPenyajian?: string[];
 }
 
 export interface DailyMeal {

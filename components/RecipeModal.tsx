@@ -22,7 +22,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
   if (!meal) return null;
 
   const { resep } = meal;
-  const { nutrisi, tips } = resep;
+  const { nutrisi, tips, saranPenyajian } = resep;
   
   const ownedIngredientsLower = ownedIngredients.map(i => i.name.toLowerCase());
 
@@ -79,7 +79,7 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
             </div>
           </div>
 
-          {(nutrisi || (tips && tips.length > 0)) && (
+          {(nutrisi || (tips && tips.length > 0) || (saranPenyajian && saranPenyajian.length > 0)) && (
             <div className="mt-8 bg-emerald-50/60 p-4 rounded-lg">
                 <div className="space-y-6">
                 {nutrisi && (
@@ -114,6 +114,20 @@ const RecipeModal: React.FC<RecipeModalProps> = ({ meal, onClose, ownedIngredien
                     {tips.map((tip, index) => (
                         <li key={index} className="flex items-start bg-white/50 p-3 rounded-md">
                         <span className="text-emerald-500 mr-3 mt-1 text-lg">💡</span>
+                        <span className="text-gray-700">{tip}</span>
+                        </li>
+                    ))}
+                    </ul>
+                </div>
+                )}
+
+                {saranPenyajian && saranPenyajian.length > 0 && (
+                <div>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-3 border-b-2 border-emerald-200 pb-2">Saran Penyajian</h3>
+                    <ul className="space-y-3">
+                    {saranPenyajian.map((tip, index) => (
+                        <li key={index} className="flex items-start bg-white/50 p-3 rounded-md">
+                        <span className="text-emerald-500 mr-3 mt-1 text-lg">🍽️</span>
                         <span className="text-gray-700">{tip}</span>
                         </li>
                     ))}

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { DailyMeal, DietaryPreferences, Ingredient } from '../types';
+import type { DailyMeal, DietaryPreferences, Ingredient, Recipe } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
@@ -54,39 +54,46 @@ export const extractIngredientsFromImage = async (imageParts: ImagePart[]): Prom
     }
 };
 
+const singleRecipeSchema = {
+  type: Type.OBJECT,
+  properties: {
+    namaResep: { type: Type.STRING, description: "Nama resep masakan" },
+    deskripsi: { type: Type.STRING, description: "Deskripsi singkat dan menarik tentang resep" },
+    bahan: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Daftar bahan yang dibutuhkan" },
+    instruksi: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Langkah-langkah memasak" },
+    waktuMasak: { type: Type.STRING, description: "Estimasi waktu memasak (misal: '30 menit')" },
+    nutrisi: {
+      type: Type.OBJECT,
+      description: "Estimasi informasi gizi per porsi",
+      properties: {
+        kalori: { type: Type.STRING, description: "Jumlah kalori, contoh: '450 kcal'" },
+        protein: { type: Type.STRING, description: "Jumlah protein, contoh: '30g'" },
+        karbohidrat: { type: Type.STRING, description: "Jumlah karbohidrat, contoh: '40g'" },
+        lemak: { type: Type.STRING, description: "Jumlah lemak, contoh: '15g'" }
+      },
+      required: ["kalori", "protein", "karbohidrat", "lemak"]
+    },
+    tips: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Satu atau dua tips memasak yang relevan dengan resep"
+    },
+    saranPenyajian: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: "Satu atau dua saran penyajian untuk resep, seperti lauk pendamping atau cara menghias."
+    }
+  },
+  required: ["namaResep", "deskripsi", "bahan", "instruksi", "waktuMasak", "nutrisi", "tips", "saranPenyajian"],
+};
+
 const mealPlanSchema = {
     type: Type.ARRAY,
     items: {
       type: Type.OBJECT,
       properties: {
         hari: { type: Type.STRING, description: "Hari dalam seminggu (Senin, Selasa, dst.)" },
-        resep: {
-          type: Type.OBJECT,
-          properties: {
-            namaResep: { type: Type.STRING, description: "Nama resep masakan" },
-            deskripsi: { type: Type.STRING, description: "Deskripsi singkat dan menarik tentang resep" },
-            bahan: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Daftar bahan yang dibutuhkan" },
-            instruksi: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Langkah-langkah memasak" },
-            waktuMasak: { type: Type.STRING, description: "Estimasi waktu memasak (misal: '30 menit')" },
-            nutrisi: {
-              type: Type.OBJECT,
-              description: "Estimasi informasi gizi per porsi",
-              properties: {
-                kalori: { type: Type.STRING, description: "Jumlah kalori, contoh: '450 kcal'" },
-                protein: { type: Type.STRING, description: "Jumlah protein, contoh: '30g'" },
-                karbohidrat: { type: Type.STRING, description: "Jumlah karbohidrat, contoh: '40g'" },
-                lemak: { type: Type.STRING, description: "Jumlah lemak, contoh: '15g'" }
-              },
-              required: ["kalori", "protein", "karbohidrat", "lemak"]
-            },
-            tips: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Satu atau dua tips memasak atau penyajian yang relevan dengan resep"
-            }
-          },
-          required: ["namaResep", "deskripsi", "bahan", "instruksi", "waktuMasak", "nutrisi", "tips"],
-        }
+        resep: singleRecipeSchema,
       },
       required: ["hari", "resep"],
     }
@@ -119,7 +126,8 @@ export const generateMealPlan = async (ingredients: Ingredient[], preferences: D
 
         Untuk SETIAP resep, sertakan juga:
         1.  Estimasi informasi gizi per porsi (kalori, protein, karbohidrat, lemak).
-        2.  Satu atau dua tips memasak atau penyajian yang relevan dan bermanfaat.
+        2.  Satu atau dua tips memasak yang relevan dan bermanfaat.
+        3.  Satu atau dua saran penyajian (misalnya, lauk pendamping atau cara menghias).
         
         Jawab HANYA dalam format JSON sesuai skema yang diberikan.
     `;
@@ -143,6 +151,73 @@ export const generateMealPlan = async (ingredients: Ingredient[], preferences: D
     } catch (e) {
         console.error("Failed to parse meal plan:", e);
         throw new Error("Gagal membuat rencana makan. Silakan coba lagi.");
+    }
+};
+
+export const regenerateRecipe = async (
+    ingredients: Ingredient[], 
+    preferences: DietaryPreferences, 
+    useOnlyProvidedIngredients: boolean,
+    currentMealPlan: DailyMeal[],
+    dayToRegenerate: string,
+): Promise<Recipe> => {
+    const mealToReplace = currentMealPlan.find(m => m.hari === dayToRegenerate);
+    const otherRecipes = currentMealPlan.filter(m => m.hari !== dayToRegenerate).map(m => m.resep.namaResep);
+
+    let preferenceText = "Tidak ada preferensi khusus.";
+    const activePreferences = [];
+    if (preferences.vegetarian) activePreferences.push("vegetarian");
+    if (preferences.glutenFree) activePreferences.push("bebas gluten");
+    if (preferences.dairyFree) activePreferences.push("bebas susu");
+    if (preferences.lainnya) activePreferences.push(preferences.lainnya);
+
+    if (activePreferences.length > 0) {
+        preferenceText = `Dengan mempertimbangkan preferensi diet berikut: ${activePreferences.join(", ")}.`;
+    }
+
+    const ingredientListText = ingredients.map(i => `${i.name} (${i.quantity})`).join(", ");
+
+    const strictInstruction = useOnlyProvidedIngredients
+        ? "PENTING: Buat resep HANYA menggunakan bahan-bahan dari daftar yang diberikan."
+        : "Pastikan resep memaksimalkan penggunaan bahan yang tersedia. Anda boleh menyarankan beberapa bahan tambahan umum jika diperlukan untuk melengkapi resep.";
+
+    const prompt = `
+        Anda adalah seorang ahli gizi dan koki yang handal dari Indonesia.
+        Berdasarkan daftar bahan makanan berikut: ${ingredientListText}.
+        ${preferenceText}
+        Buatkan satu resep makan malam BARU dan BERBEDA untuk hari ${dayToRegenerate}.
+        Resep saat ini untuk hari itu adalah "${mealToReplace?.resep.namaResep}", jadi berikan sesuatu yang berbeda.
+        Hindari membuat resep yang mirip dengan yang sudah ada di rencana makan minggu ini: ${otherRecipes.join(", ")}.
+        Resep baru harus sederhana, lezat, dan cocok untuk keluarga.
+        ${strictInstruction}
+
+        Sertakan juga:
+        1. Estimasi informasi gizi per porsi (kalori, protein, karbohidrat, lemak).
+        2. Satu atau dua tips memasak yang bermanfaat.
+        3. Satu atau dua saran penyajian.
+
+        Jawab HANYA dalam format JSON sesuai skema yang diberikan untuk satu resep.
+    `;
+
+    const result = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: singleRecipeSchema
+        },
+    });
+
+    const text = result.text.trim();
+    try {
+        const recipe = JSON.parse(text);
+        if (recipe && recipe.namaResep) {
+            return recipe as Recipe;
+        }
+        throw new Error("Respon AI tidak valid.");
+    } catch (e) {
+        console.error("Gagal mem-parsing resep baru:", e);
+        throw new Error("Gagal membuat resep baru. Silakan coba lagi.");
     }
 };
 
