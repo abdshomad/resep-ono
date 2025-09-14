@@ -7,6 +7,36 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// --- Helper function for retries with exponential backoff ---
+const callGeminiWithRetry = async <T>(apiCall: () => Promise<T>, maxRetries = 3, initialDelay = 1000): Promise<T> => {
+    let retries = 0;
+    let delay = initialDelay;
+
+    while (true) {
+        try {
+            return await apiCall();
+        } catch (error: any) {
+            retries++;
+            const errorMessage = error.toString().toLowerCase();
+            const isRetryable = errorMessage.includes('429') || errorMessage.includes('resource_exhausted') || errorMessage.includes('rate limit');
+
+            if (isRetryable && retries < maxRetries) {
+                console.warn(`API call failed with retryable error. Retrying in ${delay / 1000}s... (Attempt ${retries}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 2; // Exponential backoff
+            } else {
+                console.error(`API call failed after ${retries} attempts or with a non-retryable error.`, error);
+                if (isRetryable) {
+                    throw new Error("Server AI sedang sibuk karena permintaan yang tinggi. Mohon coba lagi dalam beberapa menit.");
+                }
+                // For other errors, throw a generic message. The original error is logged.
+                throw new Error("Terjadi kesalahan tak terduga saat menghubungi server AI. Silakan coba lagi.");
+            }
+        }
+    }
+};
+
+
 const ingredientSchema = {
     type: Type.ARRAY,
     items: {
@@ -29,7 +59,7 @@ export const extractIngredientsFromImage = async (imageParts: ImagePart[]): Prom
 4.  Contoh output: [{"name": "Telur", "quantity": "sekitar 6 butir"}, {"name": "Wortel", "quantity": "2 buah"}, {"name": "Dada Ayam", "quantity": "sekitar 500g"}].
 5.  Abaikan item non-makanan dan hanya kembalikan JSON yang valid.`;
 
-    const result = await ai.models.generateContent({
+    const result = await callGeminiWithRetry(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: {
             parts: [{ text: prompt }, ...imageParts]
@@ -38,7 +68,7 @@ export const extractIngredientsFromImage = async (imageParts: ImagePart[]): Prom
             responseMimeType: "application/json",
             responseSchema: ingredientSchema
         }
-    });
+    }));
 
     const text = result.text.trim();
     try {
@@ -132,14 +162,14 @@ export const generateMealPlan = async (ingredients: Ingredient[], preferences: D
         Jawab HANYA dalam format JSON sesuai skema yang diberikan.
     `;
 
-    const result = await ai.models.generateContent({
+    const result = await callGeminiWithRetry(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
             responseMimeType: "application/json",
             responseSchema: mealPlanSchema
         },
-    });
+    }));
 
     const text = result.text.trim();
     try {
@@ -199,14 +229,14 @@ export const regenerateRecipe = async (
         Jawab HANYA dalam format JSON sesuai skema yang diberikan untuk satu resep.
     `;
 
-    const result = await ai.models.generateContent({
+    const result = await callGeminiWithRetry(() => ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
             responseMimeType: "application/json",
             responseSchema: singleRecipeSchema
         },
-    });
+    }));
 
     const text = result.text.trim();
     try {
@@ -222,27 +252,23 @@ export const regenerateRecipe = async (
 };
 
 export const generateRecipeImage = async (recipeName: string): Promise<string> => {
-    try {
-        const prompt = `Foto close-up yang fotorealistik dan sangat menggugah selera dari masakan Indonesia: ${recipeName}. Tampilkan di atas piring keramik yang bagus, dengan hiasan segar, pencahayaan studio yang lembut.`;
-        
-        const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
-            prompt: prompt,
-            config: {
-              numberOfImages: 1,
-              outputMimeType: 'image/jpeg',
-              aspectRatio: '4:3',
-            },
-        });
+    const prompt = `Foto close-up yang fotorealistik dan sangat menggugah selera dari masakan Indonesia: ${recipeName}. Tampilkan di atas piring keramik yang bagus, dengan hiasan segar, pencahayaan studio yang lembut.`;
+    
+    const response = await callGeminiWithRetry(() => ai.models.generateImages({
+        model: 'imagen-4.0-generate-001',
+        prompt: prompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: '4:3',
+        },
+    }));
 
-        if (response.generatedImages && response.generatedImages.length > 0) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-            return `data:image/jpeg;base64,${base64ImageBytes}`;
-        }
-        
-        throw new Error("No image data found in response");
-    } catch (error) {
-        console.error("Error generating recipe image:", error);
-        throw new Error("Gagal membuat gambar masakan.");
+    if (response.generatedImages && response.generatedImages.length > 0) {
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return `data:image/jpeg;base64,${base64ImageBytes}`;
     }
+    
+    console.error("Error generating recipe image: No image data found in response");
+    throw new Error("Gagal membuat gambar masakan: tidak ada data gambar yang diterima.");
 };

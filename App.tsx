@@ -12,8 +12,20 @@ import RecipeModal from './components/RecipeModal';
 type AppState = 'initial' | 'processing_receipt' | 'editing_ingredients' | 'confirm_add_ingredients' | 'generating_plan' | 'showing_plan';
 
 const loadingMessages = {
-  processing_receipt: 'Menganalisis foto bahan makanan...',
-  generating_plan: 'Menyusun rencana makan...',
+  processing_receipt: [
+    'Mempersiapkan gambar Anda...',
+    'Model AI sedang menganalisis foto...',
+    'Mengidentifikasi setiap bahan makanan...',
+    'Memperkirakan jumlah dan ukuran...',
+    'Menyusun daftar akhir...'
+  ],
+  generating_plan: [
+    'Membaca daftar bahan dan preferensi...',
+    'Mencari ide resep yang cocok...',
+    'Menulis instruksi memasak yang mudah...',
+    'Menghitung perkiraan gizi...',
+    'Menyelesaikan rencana makan Anda...'
+  ],
 };
 
 const PREFERENCES_STORAGE_KEY = 'resep-ono-preferences';
@@ -103,7 +115,7 @@ const App: React.FC = () => {
 
     try {
       const imageParts = await Promise.all(imagePartsPromises);
-      await sleep(2000 + Math.random() * 1000);
+      // await sleep(2000 + Math.random() * 1000); // Removed artificial sleep
       const extracted = await extractIngredientsFromImage(imageParts);
       
       if (extracted.length === 0) {
@@ -122,7 +134,7 @@ const App: React.FC = () => {
     setError(null);
     setIsPlanFlexible(false);
     try {
-      await sleep(2000 + Math.random() * 1000);
+      // await sleep(2000 + Math.random() * 1000); // Removed artificial sleep
       const plan: DailyMeal[] = await generateMealPlan(ingredients, preferences, true); // Strict dulu
       if (plan.length === 0) {
         setAppState('confirm_add_ingredients');
@@ -149,7 +161,7 @@ const App: React.FC = () => {
     setError(null);
     setIsPlanFlexible(true);
     try {
-      await sleep(2000 + Math.random() * 1000);
+      // await sleep(2000 + Math.random() * 1000); // Removed artificial sleep
       const plan: DailyMeal[] = await generateMealPlan(ingredients, preferences, false); // Tidak strict
       if (plan.length === 0) {
         throw new Error("Tidak dapat membuat rencana makan bahkan dengan bahan tambahan. Coba lagi dengan daftar bahan yang berbeda.");
@@ -179,7 +191,7 @@ const App: React.FC = () => {
     
     setIsGeneratingImage(true);
     try {
-      await sleep(2000 + Math.random() * 1000);
+      // await sleep(2000 + Math.random() * 1000); // Removed artificial sleep
       const imageUrl = await generateRecipeImage(meal.resep.namaResep);
       setMealPlan(currentPlan =>
         currentPlan.map(m =>
@@ -207,7 +219,7 @@ const App: React.FC = () => {
     setIsRegenerating(day);
     
     try {
-        await sleep(2000 + Math.random() * 1000);
+        // await sleep(2000 + Math.random() * 1000); // Removed artificial sleep
         const currentRecipes = recipeOptions[day] || [];
         const currentRecipeNames = currentRecipes.map(r => r.namaResep);
 
@@ -258,7 +270,7 @@ const App: React.FC = () => {
         );
       case 'processing_receipt':
       case 'generating_plan':
-        return <LoadingIndicator message={loadingMessages[appState]} />;
+        return <LoadingIndicator messages={loadingMessages[appState]} />;
       case 'editing_ingredients':
         return (
           <div className="flex flex-col md:flex-row gap-8 items-start">

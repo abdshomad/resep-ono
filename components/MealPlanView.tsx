@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { DailyMeal, Recipe } from '../types';
 import { RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from './icons';
+import NutritionSummaryChart from './NutritionSummaryChart';
 
 // Memberi tahu TypeScript tentang variabel global jsPDF dari CDN
 declare const jspdf: any;
@@ -113,6 +114,29 @@ const MealPlanView: React.FC<MealPlanViewProps> = ({
 
     doc.save("Rencana-Makan.pdf");
   };
+  
+  const weeklyNutrition = useMemo(() => {
+    const totals = {
+      kalori: 0,
+      protein: 0,
+      karbohidrat: 0,
+      lemak: 0,
+    };
+    
+    const parseNutrient = (nutrient: string | undefined): number => parseInt(nutrient?.match(/\d+/)?.[0] || '0', 10);
+
+    mealPlan.forEach(meal => {
+      if (meal.resep.nutrisi) {
+        totals.kalori += parseNutrient(meal.resep.nutrisi.kalori);
+        totals.protein += parseNutrient(meal.resep.nutrisi.protein);
+        totals.karbohidrat += parseNutrient(meal.resep.nutrisi.karbohidrat);
+        totals.lemak += parseNutrient(meal.resep.nutrisi.lemak);
+      }
+    });
+
+    return totals;
+  }, [mealPlan]);
+
 
   return (
     <div className="w-full max-w-5xl mx-auto">
@@ -128,6 +152,8 @@ const MealPlanView: React.FC<MealPlanViewProps> = ({
           <span>Unduh PDF</span>
         </button>
       </div>
+      
+      <NutritionSummaryChart totalNutrition={weeklyNutrition} />
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {mealPlan.map((meal) => {
